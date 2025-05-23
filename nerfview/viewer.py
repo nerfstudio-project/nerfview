@@ -206,7 +206,7 @@ class Viewer(object):
 
         @client.camera.on_update
         def _(_: viser.CameraHandle):
-            self._last_move_time = time.time()
+            self._last_move_time = time.perf_counter()
             with self.server.atomic():
                 camera_state = self.get_camera_state(client)
                 self._renderers[client_id].submit(RenderTask("move", camera_state))
@@ -240,7 +240,7 @@ class Viewer(object):
         if len(self._renderers) == 0:
             return
         # Stop training while user moves camera to make viewing smoother.
-        while time.time() - self._last_move_time < 0.1:
+        while time.perf_counter() - self._last_move_time < 0.1:
             time.sleep(0.05)
         if (
             self.state == "training"

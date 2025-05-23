@@ -97,10 +97,10 @@ def main(port: int = 8080, max_steps: int = 50, rendering_latency: float = 0.0):
         while viewer.state == "paused":
             time.sleep(0.01)
         # Do the training step and compute the number of training rays per second.
-        tic = time.time()
+        tic = time.perf_counter()
         with viewer.lock:
             num_train_rays_per_step = training_step()
-        num_train_steps_per_sec = 1.0 / (max(time.time() - tic, 1e-10))
+        num_train_steps_per_sec = 1.0 / (time.perf_counter() - tic)
         num_train_rays_per_sec = num_train_rays_per_step * num_train_steps_per_sec
         # Update the viewer state.
         viewer.render_tab_state.num_train_rays_per_sec = num_train_rays_per_sec

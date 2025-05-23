@@ -21,6 +21,7 @@ import os
 import threading
 import time
 from pathlib import Path
+from time import perf_counter as perf_counter
 from typing import Dict, List, Literal, Optional, Tuple, Union
 
 import imageio
@@ -912,6 +913,7 @@ def populate_general_render_tab(
         return max(1, int(framerate_number.value * duration_number.value) - 1)
 
     preview_camera_handle: Optional[viser.SceneNodeHandle] = None
+    _last_send = 0.0
 
     def remove_preview_camera() -> None:
         nonlocal preview_camera_handle
@@ -977,18 +979,17 @@ def populate_general_render_tab(
                 pose, fov, time = maybe_pose_and_fov_rad
             else:
                 pose, fov = maybe_pose_and_fov_rad
-
-            preview_camera_handle = server.scene.add_camera_frustum(
-                "/preview_camera",
-                fov=fov,
-                aspect=render_res_vec2.value[0] / render_res_vec2.value[1],
-                scale=0.35,
-                wxyz=pose.rotation().wxyz,
-                position=pose.translation(),
-                color=(10, 200, 30),
-            )
-            if render_tab_state.preview_render:
-                with server.atomic():
+            with server.atomic():
+                preview_camera_handle = server.scene.add_camera_frustum(
+                    "/preview_camera",
+                    fov=fov,
+                    aspect=render_res_vec2.value[0] / render_res_vec2.value[1],
+                    scale=0.35,
+                    wxyz=pose.rotation().wxyz,
+                    position=pose.translation(),
+                    color=(10, 200, 30),
+                )
+                if render_tab_state.preview_render:
                     for client in server.get_clients().values():
                         # aspect ratio is not assignable, pass args in get_render instead
                         client.camera.wxyz = pose.rotation().wxyz
@@ -1114,17 +1115,21 @@ def populate_general_render_tab(
                 max_frame = int(framerate_number.value * duration_number.value)
                 if max_frame > 0:
                     assert preview_frame_slider is not None
+                    nonlocal _last_send
+                    now = perf_counter()
+                    if now - _last_send < 1.0 / framerate_number.value:
+                        continue
+                    _last_send = now
                     preview_frame_slider.value = (
                         preview_frame_slider.value + 1
                     ) % max_frame
-                time.sleep(1.0 / framerate_number.value)
 
         play_thread = threading.Thread(target=play)
         play_thread.start()
         play_thread.join()
         dump_video_button.disabled = not preview_save_camera_path_button.visible
 
-    # Play the camera trajectory when the play button is pressed.
+    # Pause the camera trajectory when the pause button is pressed.
     @pause_button.on_click
     def _(_) -> None:
         play_button.visible = True
@@ -1366,7 +1371,13 @@ def populate_general_render_tab(
                 max_frame = int(framerate_number.value * duration_number.value)
                 assert max_frame > 0 and preview_frame_slider is not None
                 preview_frame_slider.value = 0
-                for _ in range(max_frame):
+                render_count = 0
+                while True:
+                    nonlocal _last_send
+                    now = perf_counter()
+                    if now - _last_send < 1.0 / framerate_number.value:
+                        continue
+                    _last_send = now
                     preview_frame_slider.value = (
                         preview_frame_slider.value + 1
                     ) % max_frame
@@ -1376,6 +1387,9 @@ def populate_general_render_tab(
                         width=render_res_vec2.value[0],
                     )
                     writer.append_data(image)
+                    render_count += 1
+                    if render_count >= max_frame:
+                        break
                 writer.close()
                 print(f"Video saved to {video_outfile}")
 

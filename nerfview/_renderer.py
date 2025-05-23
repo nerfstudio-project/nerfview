@@ -145,7 +145,7 @@ class Renderer(threading.Thread):
             assert task.camera_state is not None
             try:
                 with self.lock, set_trace_context(self._may_interrupt_trace):
-                    tic = time.time()
+                    tic = time.perf_counter()
                     W, H = img_wh = self._get_img_wh(task.camera_state.aspect)
                     self.viewer.render_tab_state.viewer_width = W
                     self.viewer.render_tab_state.viewer_height = H
@@ -171,7 +171,7 @@ class Renderer(threading.Thread):
                     else:
                         img, depth = rendered, None
                     self.viewer.render_tab_state.num_view_rays_per_sec = (W * H) / (
-                        max(time.time() - tic, 1e-10)
+                        time.perf_counter() - tic
                     )
             except InterruptRenderException:
                 continue

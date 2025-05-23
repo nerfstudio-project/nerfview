@@ -403,14 +403,14 @@ class Runner:
         trainloader_iter = iter(trainloader)
 
         # Training loop.
-        tic = time.time()
+        tic = time.perf_counter()
         pbar = tqdm.tqdm(range(init_step, max_steps))
         for step in pbar:
             if not cfg.disable_viewer:
                 while self.viewer.state.status == "paused":
                     time.sleep(0.01)
                 self.viewer.lock.acquire()
-                tic = time.time()
+                tic = time.perf_counter()
 
             try:
                 data = next(trainloader_iter)
@@ -607,7 +607,7 @@ class Runner:
             # save checkpoint
             if step in [i - 1 for i in cfg.save_steps] or step == max_steps - 1:
                 mem = torch.cuda.max_memory_allocated() / 1024**3
-                toc = time.time()
+                toc = time.perf_counter()
                 stats = {
                     "mem": mem,
                     "ellipse_time": toc - tic,
@@ -631,7 +631,7 @@ class Runner:
 
             if not cfg.disable_viewer:
                 self.viewer.lock.release()
-                num_train_steps_per_sec = 1.0 / (max(time.time() - tic, 1e-10))
+                num_train_steps_per_sec = 1.0 / (time.perf_counter() - tic)
                 num_train_rays_per_sec = (
                     num_train_rays_per_step * num_train_steps_per_sec
                 )
@@ -810,7 +810,7 @@ class Runner:
             height, width = pixels.shape[1:3]
 
             torch.cuda.synchronize()
-            tic = time.time()
+            tic = time.perf_counter()
             colors, _, _ = self.rasterize_splats(
                 camtoworlds=camtoworlds,
                 Ks=Ks,
@@ -822,7 +822,7 @@ class Runner:
             )  # [1, H, W, 3]
             colors = torch.clamp(colors, 0.0, 1.0)
             torch.cuda.synchronize()
-            ellipse_time += max(time.time() - tic, 1e-10)
+            ellipse_time += time.perf_counter() - tic
 
             # write images
             canvas = torch.cat([pixels, colors], dim=2).squeeze(0).cpu().numpy()
